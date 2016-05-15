@@ -82,6 +82,7 @@ enum chan_order{
 #define PPM_MIN_COMMAND 1300
 #define PPM_MAX_COMMAND 1700
 #define GET_FLAG(ch, mask) (ppm[ch] > PPM_MAX_COMMAND ? mask : 0)
+#define GET_FLAG_INV(ch, mask) (ppm[ch] < PPM_MIN_COMMAND ? mask : 0)
 
 // supported protocols
 enum {
@@ -94,10 +95,13 @@ enum {
     PROTO_SYMAX5C1,     // Syma X5C-1 (not older X5C), X11, X11C, X12
     PROTO_YD829,        // YD-829, YD-829C, YD-822 ...
     PROTO_H8_3D,        // EAchine H8 mini 3D, JJRC H20, H22
+    PROTO_MJX,          // MJX X600 (can be changed to Weilihua WLH08, X800 or H26D)
+    PROTO_SYMAXOLD,     // Syma X5C, X2
+    PROTO_HISKY,        // HiSky RXs, HFP80, HCP80/100, FBL70/80/90/100, FF120, HMX120, WLToys v933/944/955 ...
     PROTO_END
 };
 
-// EEPROM locations
+// EEPROM locationss
 enum{
     ee_PROTOCOL_ID = 0,
     ee_TXID0,
@@ -167,10 +171,17 @@ void loop()
             timeout = process_Bayang();
             break;
         case PROTO_SYMAX5C1:
+        case PROTO_SYMAXOLD:
             timeout = process_SymaX();
             break;
         case PROTO_H8_3D:
             timeout = process_H8_3D();
+            break;
+        case PROTO_MJX:
+            timeout = process_MJX();
+            break;
+        case PROTO_HISKY:
+            timeout = process_HiSky();
             break;
     }
     // updates ppm values out of ISR
@@ -213,8 +224,20 @@ void selectProtocol()
     
     // protocol selection
     
+    // Rudder right + Elevator down
+    else if(ppm[RUDDER] > PPM_MAX_COMMAND && ppm[ELEVATOR] < PPM_MIN_COMMAND)
+    current_protocol = PROTO_HISKY; // HiSky RXs, HFP80, HCP80/100, FBL70/80/90/100, FF120, HMX120, WLToys v933/944/955 ...
+    
+    // Rudder right + Elevator up
+    else if(ppm[RUDDER] > PPM_MAX_COMMAND && ppm[ELEVATOR] > PPM_MAX_COMMAND)
+        current_protocol = PROTO_SYMAXOLD; // Syma X5C, X2 ...
+    
+    // Rudder right + Aileron right
+    else if(ppm[RUDDER] > PPM_MAX_COMMAND && ppm[AILERON] > PPM_MAX_COMMAND)
+        current_protocol = PROTO_MJX; // MJX X600, other sub protocols can be set in code
+    
     // Rudder right + Aileron left
-    if(ppm[RUDDER] > PPM_MAX_COMMAND && ppm[AILERON] < PPM_MIN_COMMAND)
+    else if(ppm[RUDDER] > PPM_MAX_COMMAND && ppm[AILERON] < PPM_MIN_COMMAND)
         current_protocol = PROTO_H8_3D; // H8 mini 3D, H20 ...
     
     // Elevator down + Aileron right
@@ -287,12 +310,19 @@ void init_protocol()
             Bayang_bind();
             break;
         case PROTO_SYMAX5C1:
+        case PROTO_SYMAXOLD:
             Symax_init();
-            SymaX_bind();
             break;
         case PROTO_H8_3D:
             H8_3D_init();
             H8_3D_bind();
+            break;
+        case PROTO_MJX:
+            MJX_init();
+            MJX_bind();
+            break;
+        case PROTO_HISKY:
+            HiSky_init();
             break;
     }
 }
